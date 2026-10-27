@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-navy: #2F4156;
+  --color-teal: #567C8D;
+  --color-sky-blue: #C8D9E6;
+  --color-beige: #F5EFEB;
+  --color-white: #FFFFFF;
+  --color-border: #C8D9E6;
+}
+
+body {
+  background-color: var(--color-beige);
+  color: var(--color-navy);
+  font-family: var(--font-public-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* WCAG 2.1 AA Strict Keyboard Accessibility & Visible Focus */
+*:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 2px;
+}
+
+/* Highlighted spans in draft text */
+mark.flagged-span {
+  background-color: var(--color-sky-blue);
+  color: var(--color-navy);
+  border-bottom: 2px solid var(--color-navy);
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+mark.flagged-span.selected {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 1px;
+}
+
+/* Scrollbars for dense tool UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-beige);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-sky-blue);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-teal);
+}
