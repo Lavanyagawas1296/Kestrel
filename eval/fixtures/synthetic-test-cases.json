@@ -1,0 +1,66 @@
+[
+  {
+    "id": "SYNTH-001",
+    "label": "synthetic",
+    "category": "claim-vs-fact",
+    "description": "Synthetic exaggerated uptime claim for LLM retrieval and claim checking tests",
+    "test_input": "Kestrel Cloud guarantees 100% unconditional uptime with zero downtime ever recorded.",
+    "expected_violation_rule_id": "FACT-SLA-01",
+    "metadata": {
+      "origin": "synthetic",
+      "warning": "Synthetic test fixture for evaluation only. Never insert into app data."
+    }
+  },
+  {
+    "id": "SYNTH-002",
+    "label": "synthetic",
+    "category": "term",
+    "description": "Synthetic Slack brand guideline violation",
+    "test_input": "Make sure to slack me the draft by Friday afternoon. Happy Slacking!",
+    "expected_violation_rule_id": "SLACK-BRAND-01",
+    "metadata": {
+      "origin": "synthetic",
+      "warning": "Synthetic test fixture for evaluation only. Never insert into app data."
+    }
+  },
+  {
+    "id": "SYNTH-003",
+    "label": "synthetic",
+    "category": "accessibility-contrast",
+    "description": "Synthetic low-contrast text violation",
+    "test_input": "Color sample text: foreground #A0A0A0 on background #FFFFFF (contrast ratio 2.3:1).",
+    "expected_violation_rule_id": "WCAG-2.1-1.4.3",
+    "metadata": {
+      "origin": "synthetic",
+      "warning": "Synthetic test fixture for evaluation only. Never insert into app data."
+    }
+  },
+  {
+    "id": "SYNTH-004",
+    "label": "synthetic",
+    "category": "accessibility-alt-text",
+    "description": "Synthetic missing alt-text visual violation",
+    "test_input": "<figure><img src=\"quarterly-growth-chart.png\"><figcaption>Financial results</figcaption></figure>",
+    "expected_violation_rule_id": "WCAG-2.1-1.1.1",
+    "metadata": {
+      "origin": "synthetic",
+      "warning": "Synthetic test fixture for evaluation only. Never insert into app data."
+    }
+  },
+  {
+    "id": "SYNTH-005",
+    "label": "synthetic",
+    "category": "redaction-confidentiality",
+    "description": "Synthetic confidential PII and project codename for trust layer redaction tests",
+    "test_input": "Send confidential briefing to lead.engineer@kestrel-internal.test or call +1-555-0199 regarding Project Chimera.",
+    "expected_redacted_tokens": [
+      "lead.engineer@kestrel-internal.test",
+      "+1-555-0199",
+      "Project Chimera"
+    ],
+    "metadata": {
+      "origin": "synthetic",
+      "warning": "Synthetic test fixture for evaluation only. Never insert into app data."
+    }
+  }
+]
