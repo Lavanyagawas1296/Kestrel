@@ -85,7 +85,8 @@ export default function HomePage() {
         });
 
         if (!res.ok) {
-          throw new Error('Failed to initialize anonymous sandbox session');
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to initialize anonymous sandbox session');
         }
 
         const data = await res.json();

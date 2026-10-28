@@ -129,7 +129,14 @@ export class WorkspaceService {
       if (!currentToken) {
         const { data: authData, error: authErr } = await anonClient.auth.signInAnonymously();
         if (authErr || !authData?.session) {
-          throw new Error('Supabase anonymous sign-in failed: ' + (authErr?.message || 'No session'));
+          let host = 'unknown';
+          try {
+            host = new URL(url).hostname;
+          } catch {}
+          throw new Error(
+            `Supabase anonymous sign-in failed (${authErr?.message || 'No session'}) on project '${host}'. ` +
+            `Please verify in Vercel settings that NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY point to your active Supabase project, and that 'Allow anonymous sign-ins' is enabled under Supabase Dashboard -> Authentication -> Providers -> Anonymous Sign-ins.`
+          );
         }
         currentToken = authData.session.access_token;
         effectiveUserId = authData.user?.id || crypto.randomUUID();
@@ -938,9 +945,17 @@ export class WorkspaceService {
       let effectiveUserId = existingUserId;
 
       if (!currentToken) {
-        const { data: authData } = await anonClient.auth.signInAnonymously();
-        currentToken = authData?.session?.access_token || token;
-        effectiveUserId = authData?.user?.id || userId;
+        const { data: authData, error: authErr } = await anonClient.auth.signInAnonymously();
+        if (authErr || !authData?.session) {
+          let host = 'unknown';
+          try { host = new URL(url).hostname; } catch {}
+          throw new Error(
+            `Supabase anonymous sign-in failed (${authErr?.message || 'No session'}) on project '${host}'. ` +
+            `Please verify in Vercel settings that NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY point to your active Supabase project, and that 'Allow anonymous sign-ins' is enabled under Supabase Dashboard -> Authentication -> Providers -> Anonymous Sign-ins.`
+          );
+        }
+        currentToken = authData.session.access_token;
+        effectiveUserId = authData.user?.id || userId;
       }
 
       const actualUserId = this.getUserIdFromToken(currentToken, effectiveUserId || userId);
