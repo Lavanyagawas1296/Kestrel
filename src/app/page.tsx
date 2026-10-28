@@ -22,6 +22,33 @@ export default function HomePage() {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [activeDraft, setActiveDraft] = useState<any | null>(null);
   const [payloadLogs, setPayloadLogs] = useState<any[]>([]);
+  const [isSampleWorkspace, setIsSampleWorkspace] = useState<boolean>(false);
+
+  const handleLoadSample = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch('/api/sample-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error('Failed to load synthetic sample workspace');
+      const data = await res.json();
+      setWorkspaceId(data.workspaceId);
+      setIsSampleWorkspace(true);
+      setActiveRole('manager');
+      setActiveDraft(null);
+      localStorage.setItem(
+        'kestrel_judge_session',
+        JSON.stringify({ workspaceId: data.workspaceId, userId: data.userId, isSample: true })
+      );
+    } catch (err: any) {
+      alert(`Error loading sample workspace: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Initialize Anonymous Judge Sandbox Session
   useEffect(() => {
@@ -244,6 +271,8 @@ export default function HomePage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         workspaceId={workspaceId}
+        isSampleWorkspace={isSampleWorkspace}
+        onLoadSample={handleLoadSample}
       />
 
       {/* Main Content Area */}

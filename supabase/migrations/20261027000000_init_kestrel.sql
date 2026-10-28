@@ -4,16 +4,9 @@
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "vector";
 
--- 2. AUTH COMPATIBILITY HELPER
--- Ensures auth.uid() works both within Supabase Auth and isolated SQL test environments
-CREATE SCHEMA IF NOT EXISTS auth;
-CREATE OR REPLACE FUNCTION auth.uid()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
-$$;
+-- 2. AUTH COMPATIBILITY NOTE
+-- Calling auth.uid() and auth.jwt() is natively supported by Supabase.
+-- For offline/local PGlite testing, the test runner defines auth.uid() in the test harness.
 
 -- 3. TABLES
 
@@ -401,31 +394,37 @@ ALTER TABLE public.audit_log FORCE ROW LEVEL SECURITY;
 
 -- WORKSPACES POLICIES
 -- Select: Members can view their workspaces
+DROP POLICY IF EXISTS "workspaces_select_member" ON public.workspaces;
 CREATE POLICY "workspaces_select_member" ON public.workspaces
 FOR SELECT USING (public.is_member_of(id));
 
 -- Insert: Any authenticated user (including Supabase anonymous auth) can create a workspace
+DROP POLICY IF EXISTS "workspaces_insert_creator" ON public.workspaces;
 CREATE POLICY "workspaces_insert_creator" ON public.workspaces
 FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- Update: Managers only
+DROP POLICY IF EXISTS "workspaces_update_manager" ON public.workspaces;
 CREATE POLICY "workspaces_update_manager" ON public.workspaces
 FOR UPDATE USING (public.get_user_role(id) = 'manager')
 WITH CHECK (public.get_user_role(id) = 'manager');
 
 -- Delete: Managers only
+DROP POLICY IF EXISTS "workspaces_delete_manager" ON public.workspaces;
 CREATE POLICY "workspaces_delete_manager" ON public.workspaces
 FOR DELETE USING (public.get_user_role(id) = 'manager');
 
 
 -- MEMBERS POLICIES
 -- Select: Workspace members can view other members in their workspace
+DROP POLICY IF EXISTS "members_select_workspace" ON public.members;
 CREATE POLICY "members_select_workspace" ON public.members
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert:
 -- 1. Self-registration when creating a workspace (user_id = auth.uid())
 -- 2. Managers adding team members
+DROP POLICY IF EXISTS "members_insert_access" ON public.members;
 CREATE POLICY "members_insert_access" ON public.members
 FOR INSERT WITH CHECK (
   (user_id = auth.uid()) OR (public.get_user_role(workspace_id) = 'manager')
@@ -434,6 +433,7 @@ FOR INSERT WITH CHECK (
 -- Update:
 -- 1. Judge role switcher in isolated sandbox: user can toggle their own role inside their workspace
 -- 2. Managers updating member roles
+DROP POLICY IF EXISTS "members_update_access" ON public.members;
 CREATE POLICY "members_update_access" ON public.members
 FOR UPDATE USING (
   ((user_id = auth.uid()) AND public.is_member_of(workspace_id))
@@ -445,6 +445,7 @@ WITH CHECK (
 );
 
 -- Delete: Member leaving or Manager removing member
+DROP POLICY IF EXISTS "members_delete_access" ON public.members;
 CREATE POLICY "members_delete_access" ON public.members
 FOR DELETE USING (
   (user_id = auth.uid()) OR (public.get_user_role(workspace_id) = 'manager')
@@ -453,43 +454,52 @@ FOR DELETE USING (
 
 -- KB_RULES POLICIES
 -- Select: All workspace members can read brand rules
+DROP POLICY IF EXISTS "kb_rules_select_member" ON public.kb_rules;
 CREATE POLICY "kb_rules_select_member" ON public.kb_rules
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Reviewers and Managers can create rules
+DROP POLICY IF EXISTS "kb_rules_insert_review_manager" ON public.kb_rules;
 CREATE POLICY "kb_rules_insert_review_manager" ON public.kb_rules
 FOR INSERT WITH CHECK (public.get_user_role(workspace_id) IN ('reviewer', 'manager'));
 
 -- Update: Reviewers and Managers can edit/version rules
+DROP POLICY IF EXISTS "kb_rules_update_review_manager" ON public.kb_rules;
 CREATE POLICY "kb_rules_update_review_manager" ON public.kb_rules
 FOR UPDATE USING (public.get_user_role(workspace_id) IN ('reviewer', 'manager'))
 WITH CHECK (public.get_user_role(workspace_id) IN ('reviewer', 'manager'));
 
 -- Delete: Reviewers and Managers can delete rules
+DROP POLICY IF EXISTS "kb_rules_delete_review_manager" ON public.kb_rules;
 CREATE POLICY "kb_rules_delete_review_manager" ON public.kb_rules
 FOR DELETE USING (public.get_user_role(workspace_id) IN ('reviewer', 'manager'));
 
 
 -- KB_RULE_VERSIONS POLICIES (Immutable Ledger)
 -- Select: All workspace members can read version history
+DROP POLICY IF EXISTS "kb_rule_versions_select_member" ON public.kb_rule_versions;
 CREATE POLICY "kb_rule_versions_select_member" ON public.kb_rule_versions
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Reviewers and Managers (or triggers)
+DROP POLICY IF EXISTS "kb_rule_versions_insert_review_manager" ON public.kb_rule_versions;
 CREATE POLICY "kb_rule_versions_insert_review_manager" ON public.kb_rule_versions
 FOR INSERT WITH CHECK (public.get_user_role(workspace_id) IN ('reviewer', 'manager'));
 
 -- Delete: Managers only (ledger cleanup)
+DROP POLICY IF EXISTS "kb_rule_versions_delete_manager" ON public.kb_rule_versions;
 CREATE POLICY "kb_rule_versions_delete_manager" ON public.kb_rule_versions
 FOR DELETE USING (public.get_user_role(workspace_id) = 'manager');
 
 
 -- DRAFTS POLICIES
 -- Select: All workspace members can view drafts
+DROP POLICY IF EXISTS "drafts_select_member" ON public.drafts;
 CREATE POLICY "drafts_select_member" ON public.drafts
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Creators and Managers can create drafts
+DROP POLICY IF EXISTS "drafts_insert_creator_manager" ON public.drafts;
 CREATE POLICY "drafts_insert_creator_manager" ON public.drafts
 FOR INSERT WITH CHECK (
   public.get_user_role(workspace_id) IN ('creator', 'manager')
@@ -500,6 +510,7 @@ FOR INSERT WITH CHECK (
 -- 1. Managers have full update authority
 -- 2. Reviewers can update review status (IN_REVIEW, REJECTED)
 -- 3. Creators can update their drafts (title, submitting to IN_REVIEW, revising when NEEDS_RECHECK)
+DROP POLICY IF EXISTS "drafts_update_member" ON public.drafts;
 CREATE POLICY "drafts_update_member" ON public.drafts
 FOR UPDATE USING (
   public.is_member_of(workspace_id) AND (
@@ -517,6 +528,7 @@ WITH CHECK (
 );
 
 -- Delete: Managers or the Creator who authored the draft
+DROP POLICY IF EXISTS "drafts_delete_author_manager" ON public.drafts;
 CREATE POLICY "drafts_delete_author_manager" ON public.drafts
 FOR DELETE USING (
   (public.get_user_role(workspace_id) = 'manager')
@@ -526,10 +538,12 @@ FOR DELETE USING (
 
 -- DRAFT_VERSIONS POLICIES (Immutable Content Snapshots)
 -- Select: Workspace members can view content versions
+DROP POLICY IF EXISTS "draft_versions_select_member" ON public.draft_versions;
 CREATE POLICY "draft_versions_select_member" ON public.draft_versions
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Creators and Managers can save a new draft version
+DROP POLICY IF EXISTS "draft_versions_insert_creator_manager" ON public.draft_versions;
 CREATE POLICY "draft_versions_insert_creator_manager" ON public.draft_versions
 FOR INSERT WITH CHECK (
   public.get_user_role(workspace_id) IN ('creator', 'manager')
@@ -537,47 +551,56 @@ FOR INSERT WITH CHECK (
 );
 
 -- Delete: Managers only
+DROP POLICY IF EXISTS "draft_versions_delete_manager" ON public.draft_versions;
 CREATE POLICY "draft_versions_delete_manager" ON public.draft_versions
 FOR DELETE USING (public.get_user_role(workspace_id) = 'manager');
 
 
 -- FINDINGS POLICIES
 -- Select: Workspace members can view findings
+DROP POLICY IF EXISTS "findings_select_member" ON public.findings;
 CREATE POLICY "findings_select_member" ON public.findings
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Workspace members can run checks and insert findings
+DROP POLICY IF EXISTS "findings_insert_member" ON public.findings;
 CREATE POLICY "findings_insert_member" ON public.findings
 FOR INSERT WITH CHECK (public.is_member_of(workspace_id));
 
 -- Update: Creators, Reviewers, and Managers can accept or override findings
 -- Overrides require override_comment (enforced by CHECK constraint)
+DROP POLICY IF EXISTS "findings_update_member" ON public.findings;
 CREATE POLICY "findings_update_member" ON public.findings
 FOR UPDATE USING (public.is_member_of(workspace_id))
 WITH CHECK (public.is_member_of(workspace_id));
 
 -- Delete: Managers only
+DROP POLICY IF EXISTS "findings_delete_manager" ON public.findings;
 CREATE POLICY "findings_delete_manager" ON public.findings
 FOR DELETE USING (public.get_user_role(workspace_id) = 'manager');
 
 
 -- COMMENTS POLICIES
 -- Select: Workspace members can view comments
+DROP POLICY IF EXISTS "comments_select_member" ON public.comments;
 CREATE POLICY "comments_select_member" ON public.comments
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Workspace members can add comments attributed to themselves
+DROP POLICY IF EXISTS "comments_insert_member" ON public.comments;
 CREATE POLICY "comments_insert_member" ON public.comments
 FOR INSERT WITH CHECK (
   public.is_member_of(workspace_id) AND user_id = auth.uid()
 );
 
 -- Update: Author only
+DROP POLICY IF EXISTS "comments_update_author" ON public.comments;
 CREATE POLICY "comments_update_author" ON public.comments
 FOR UPDATE USING (user_id = auth.uid() AND public.is_member_of(workspace_id))
 WITH CHECK (user_id = auth.uid() AND public.is_member_of(workspace_id));
 
 -- Delete: Author or Manager
+DROP POLICY IF EXISTS "comments_delete_author_manager" ON public.comments;
 CREATE POLICY "comments_delete_author_manager" ON public.comments
 FOR DELETE USING (
   (user_id = auth.uid() AND public.is_member_of(workspace_id))
@@ -587,16 +610,19 @@ FOR DELETE USING (
 
 -- APPROVALS POLICIES
 -- Select: Workspace members can view approvals
+DROP POLICY IF EXISTS "approvals_select_member" ON public.approvals;
 CREATE POLICY "approvals_select_member" ON public.approvals
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Only Managers can record approval decisions
+DROP POLICY IF EXISTS "approvals_insert_manager" ON public.approvals;
 CREATE POLICY "approvals_insert_manager" ON public.approvals
 FOR INSERT WITH CHECK (
   public.get_user_role(workspace_id) = 'manager' AND reviewer_id = auth.uid()
 );
 
 -- Update: Managers only
+DROP POLICY IF EXISTS "approvals_update_manager" ON public.approvals;
 CREATE POLICY "approvals_update_manager" ON public.approvals
 FOR UPDATE USING (
   public.get_user_role(workspace_id) = 'manager' AND reviewer_id = auth.uid()
@@ -606,16 +632,19 @@ WITH CHECK (
 );
 
 -- Delete: Managers only
+DROP POLICY IF EXISTS "approvals_delete_manager" ON public.approvals;
 CREATE POLICY "approvals_delete_manager" ON public.approvals
 FOR DELETE USING (public.get_user_role(workspace_id) = 'manager');
 
 
 -- PAYLOAD_LOG POLICIES (Immutable Outbound Trust Layer Log)
 -- Select: Workspace members can inspect outbound model payloads
+DROP POLICY IF EXISTS "payload_log_select_member" ON public.payload_log;
 CREATE POLICY "payload_log_select_member" ON public.payload_log
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Logged by workspace members initiating checks
+DROP POLICY IF EXISTS "payload_log_insert_member" ON public.payload_log;
 CREATE POLICY "payload_log_insert_member" ON public.payload_log
 FOR INSERT WITH CHECK (
   public.is_member_of(workspace_id) AND user_id = auth.uid()
@@ -624,11 +653,30 @@ FOR INSERT WITH CHECK (
 
 -- AUDIT_LOG POLICIES (Immutable Governance Ledger)
 -- Select: Workspace members can review audit logs
+DROP POLICY IF EXISTS "audit_log_select_member" ON public.audit_log;
 CREATE POLICY "audit_log_select_member" ON public.audit_log
 FOR SELECT USING (public.is_member_of(workspace_id));
 
 -- Insert: Workspace members can record audit actions
+DROP POLICY IF EXISTS "audit_log_insert_member" ON public.audit_log;
 CREATE POLICY "audit_log_insert_member" ON public.audit_log
 FOR INSERT WITH CHECK (
   public.is_member_of(workspace_id) AND actor_id = auth.uid()
 );
+
+-- 8. EXPLICIT GRANTS FOR SUPABASE POSTGREST
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    GRANT USAGE ON SCHEMA public TO anon;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;
+    GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    GRANT USAGE ON SCHEMA public TO authenticated;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+    GRANT ALL ON ALL ROUTINES IN SCHEMA public TO authenticated;
+  END IF;
+END $$;

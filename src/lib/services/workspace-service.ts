@@ -1,6 +1,7 @@
 import { getLocalDatabase } from '../db/pglite-provider';
 import { runReviewPipeline } from '../engine/pipeline';
 import type { MemberRole } from '../supabase/database.types';
+import { PUBLIC_SAMPLE_RULES } from '../constants/sample-rules';
 
 export interface DraftVersionItem {
   id: string;
@@ -447,6 +448,163 @@ export class WorkspaceService {
       [workspaceId]
     );
     return res.rows;
+  }
+
+  /**
+   * Loads an optional sample workspace with synthetic demonstration rules and drafts.
+   * Labeled "Synthetic sample, not real company data".
+   * Never loaded by default.
+   */
+  async loadSampleWorkspace(existingUserId?: string, token?: string) {
+    const isSupabase = Boolean(
+      (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+      process.env.USE_PGLITE !== 'true'
+    );
+
+    const userId = existingUserId || crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+
+    if (isSupabase) {
+      const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+      const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      const { createClient } = await import('@supabase/supabase-js');
+      const anonClient = createClient(url, key, { auth: { persistSession: false } });
+      const { data: authData } = await anonClient.auth.signInAnonymously();
+      const currentToken = authData?.session?.access_token || token;
+      const client = createClient(url, key, {
+        auth: { persistSession: false },
+        global: currentToken ? { headers: { Authorization: `Bearer ${currentToken}` } } : undefined,
+      });
+
+      const effectiveUserId = authData?.user?.id || userId;
+
+      // 1. Workspace
+      await client.from('workspaces').insert({
+        id: workspaceId,
+        name: 'Synthetic sample, not real company data',
+      });
+
+      // 2. Member
+      await client.from('members').insert({
+        workspace_id: workspaceId,
+        user_id: effectiveUserId,
+        role: 'manager',
+      });
+
+      // 3. Seed sample rules
+      for (const r of PUBLIC_SAMPLE_RULES) {
+        await client.from('kb_rules').upsert({
+          workspace_id: workspaceId,
+          ...r,
+        }, { onConflict: 'workspace_id,rule_id' });
+      }
+
+      // 4. Create Draft 1 (Deliberate violations)
+      const d1Id = crypto.randomUUID();
+      const v1Id = crypto.randomUUID();
+      const d1Content = 'Welcome to the Kestrel Cloud platform. We guarantee 99.99% zero-downtime uptime for all mission-critical enterprise workloads. If your team needs custom integration assistance, our engineers will slack you the deployment runbook directly. Happy Slacking!';
+      await client.from('drafts').insert({
+        id: d1Id,
+        workspace_id: workspaceId,
+        title: 'Product Launch Announcement (Synthetic)',
+        status: 'DRAFT',
+        created_by: effectiveUserId,
+      });
+      await client.from('draft_versions').insert({
+        id: v1Id,
+        draft_id: d1Id,
+        workspace_id: workspaceId,
+        version_number: 1,
+        content: d1Content,
+        created_by: effectiveUserId,
+      });
+
+      // 5. Create Draft 2 (Clean)
+      const d2Id = crypto.randomUUID();
+      const v2Id = crypto.randomUUID();
+      const d2Content = 'Our Cloud Orchestrator infrastructure guarantees a 99.9% uptime SLA under Section 4.1 of the Master Agreement. Team communication is coordinated via our enterprise messaging platform with verified accessibility benchmarks.';
+      await client.from('drafts').insert({
+        id: d2Id,
+        workspace_id: workspaceId,
+        title: 'Q3 System Maintenance & SLA Summary (Clean)',
+        status: 'DRAFT',
+        created_by: effectiveUserId,
+      });
+      await client.from('draft_versions').insert({
+        id: v2Id,
+        draft_id: d2Id,
+        workspace_id: workspaceId,
+        version_number: 1,
+        content: d2Content,
+        created_by: effectiveUserId,
+      });
+
+      return {
+        workspaceId,
+        userId: effectiveUserId,
+        role: 'manager' as MemberRole,
+        isSample: true,
+      };
+    }
+
+    // PGlite fallback
+    const db = await getLocalDatabase();
+    await db.query(`INSERT INTO public.workspaces (id, name) VALUES ($1, $2)`, [
+      workspaceId,
+      'Synthetic sample, not real company data',
+    ]);
+    await db.query(`INSERT INTO public.members (workspace_id, user_id, role) VALUES ($1, $2, 'manager')`, [
+      workspaceId,
+      userId,
+    ]);
+
+    for (const r of PUBLIC_SAMPLE_RULES) {
+      await db.query(
+        `INSERT INTO public.kb_rules (workspace_id, rule_id, type, owner, effective_date, version, rule_text, source_name, source_url, origin, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (workspace_id, rule_id) DO NOTHING`,
+        [
+          workspaceId,
+          r.rule_id,
+          r.type,
+          r.owner,
+          r.effective_date,
+          r.version,
+          r.rule_text,
+          r.source_name,
+          r.source_url,
+          r.origin,
+          r.status,
+        ]
+      );
+    }
+
+    const d1Id = crypto.randomUUID();
+    const v1Id = crypto.randomUUID();
+    const d1Content = 'Welcome to the Kestrel Cloud platform. We guarantee 99.99% zero-downtime uptime for all mission-critical enterprise workloads. If your team needs custom integration assistance, our engineers will slack you the deployment runbook directly. Happy Slacking!';
+    await db.query(`INSERT INTO public.drafts (id, workspace_id, title, status, created_by) VALUES ($1, $2, $3, 'DRAFT', $4)`, [
+      d1Id, workspaceId, 'Product Launch Announcement (Synthetic)', userId
+    ]);
+    await db.query(`INSERT INTO public.draft_versions (id, draft_id, workspace_id, version_number, content, created_by) VALUES ($1, $2, $3, 1, $4, $5)`, [
+      v1Id, d1Id, workspaceId, d1Content, userId
+    ]);
+
+    const d2Id = crypto.randomUUID();
+    const v2Id = crypto.randomUUID();
+    const d2Content = 'Our Cloud Orchestrator infrastructure guarantees a 99.9% uptime SLA under Section 4.1 of the Master Agreement. Team communication is coordinated via our enterprise messaging platform with verified accessibility benchmarks.';
+    await db.query(`INSERT INTO public.drafts (id, workspace_id, title, status, created_by) VALUES ($1, $2, $3, 'DRAFT', $4)`, [
+      d2Id, workspaceId, 'Q3 System Maintenance & SLA Summary (Clean)', userId
+    ]);
+    await db.query(`INSERT INTO public.draft_versions (id, draft_id, workspace_id, version_number, content, created_by) VALUES ($1, $2, $3, 1, $4, $5)`, [
+      v2Id, d2Id, workspaceId, d2Content, userId
+    ]);
+
+    return {
+      workspaceId,
+      userId,
+      role: 'manager' as MemberRole,
+      isSample: true,
+    };
   }
 }
 

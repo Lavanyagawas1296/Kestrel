@@ -117,18 +117,48 @@ Synthetic evaluation strings (such as false uptime claims) exist strictly under 
 ## Development & Testing Commands
 
 ```bash
-# Install dependencies
-npm install
-
-# Run TypeScript type check
-npm run typecheck
-
-# Run ESLint
-npm run lint
-
-# Run automated RLS and validation tests (using Vitest + in-process PostgreSQL with pgvector)
+# Run automated offline unit tests (33 tests across 4 suites in PGlite)
 npm test
 
-# Run seed script against a target workspace
-npm run seed
+# Run production build
+npm run build
+
+# Live Supabase Dual-Session Anonymous RLS Test
+npx tsx scripts/test-live-supabase-rls.ts
+
+# Live Gemini LLM Review Test (with Grounding Drops & Audit Logging)
+npx tsx scripts/test-live-gemini.ts
+
+# Live Full Path End-to-End Test (Draft -> Review -> Fix v2 -> Manager Approve)
+npx tsx scripts/test-e2e-core-path.ts
+
+# Serverless Buffer Parsers Check (PDF, DOCX, PNG)
+npx tsx scripts/test-serverless-parsers.ts
 ```
+
+---
+
+## Production Deployment on Vercel
+
+Kestrel is architected for zero-configuration GitHub integration on Vercel.
+
+### Vercel Dashboard Environment Variables Checklist
+
+Add the following environment variables in your Vercel Project Settings (**Settings > Environment Variables**):
+
+| Variable Name | Required | Description | Example / Target |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | **Yes** | Supabase project URL | `https://your-project-ref.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Yes** | Supabase publishable / anon key | `sb_publishable_...` |
+| `GEMINI_API_KEY` | **Yes** | Google Gemini API key (for live review engine) | Configured in Google AI Studio |
+| `GEMINI_MODEL` | Optional | LLM model name (defaults to `gemini-3.5-flash-lite`) | `gemini-3.5-flash-lite` |
+| `USE_PGLITE` | Optional | Storage mode (`false` in production, `true` for offline unit tests) | `false` |
+| `NEXT_PUBLIC_APP_URL` | Optional | Canonical deployment URL | `https://kestrel-governance.vercel.app` |
+
+All Serverless API routes are configured with:
+```ts
+export const runtime = 'nodejs';
+export const maxDuration = 30;
+export const dynamic = 'force-dynamic';
+```
+allowing full compatibility with native binary/buffer parsing (`mammoth`, `pngjs`, and `pdf-parse`).

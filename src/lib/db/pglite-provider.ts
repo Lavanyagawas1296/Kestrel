@@ -16,6 +16,15 @@ export async function getLocalDatabase(): Promise<PGlite> {
 
   const db = new PGlite({ extensions: { vector } });
 
+  // Define auth schema and auth.uid() helper for PGlite test environment
+  await db.exec(`
+    CREATE SCHEMA IF NOT EXISTS auth;
+    CREATE OR REPLACE FUNCTION auth.uid()
+    RETURNS uuid LANGUAGE sql STABLE AS $$
+      SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+    $$;
+  `);
+
   // Read and apply migration SQL
   const migrationPath = path.join(process.cwd(), 'supabase/migrations/20261027000000_init_kestrel.sql');
   if (fs.existsSync(migrationPath)) {

@@ -76,9 +76,9 @@ export class GeminiProvider implements LLMProvider {
   private apiKey: string;
   private model: string;
 
-  constructor(apiKey?: string, model = 'gemini-1.5-flash') {
+  constructor(apiKey?: string, model?: string) {
     this.apiKey = apiKey || process.env.GEMINI_API_KEY || '';
-    this.model = model;
+    this.model = model || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   }
 
   async checkDraft(
@@ -93,33 +93,75 @@ export class GeminiProvider implements LLMProvider {
     const prompt = buildPrompt(redactedDraft, rules);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-        },
-      }),
-      signal,
-    });
+    const maxRetries = 2;
+    let lastError: Error | null = null;
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Gemini API error (${res.status}): ${errText}`);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Enforce per-attempt timeout if signal not already aborted
+        const controller = new AbortController();
+        const timeoutMs = 20000;
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        // If caller passed signal, link it
+        if (signal) {
+          if (signal.aborted) {
+            controller.abort();
+          } else {
+            signal.addEventListener('abort', () => controller.abort());
+          }
+        }
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.1,
+            },
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timer);
+
+        if (!res.ok) {
+          const errText = await res.text();
+          const shouldRetry =
+            res.status === 429 || res.status >= 500;
+          if (shouldRetry && attempt < maxRetries) {
+            const delay = Math.pow(2, attempt) * 1000;
+            console.warn(`[Gemini] HTTP ${res.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+          throw new Error(`Gemini API error (${res.status}): ${errText}`);
+        }
+
+        const json = await res.json();
+        const rawContent = json?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+        const cleaned = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+        const parsed = JSON.parse(cleaned);
+        const validated = llmResponseSchema.parse(parsed);
+
+        return validated.map((item) => ({
+          ...item,
+          engine: 'LLM_RAG',
+        }));
+      } catch (err: any) {
+        lastError = err;
+        if (attempt < maxRetries && err.name !== 'AbortError') {
+          const delay = Math.pow(2, attempt) * 1000;
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        break;
+      }
     }
 
-    const json = await res.json();
-    const rawContent = json?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    const parsed = JSON.parse(rawContent);
-    const validated = llmResponseSchema.parse(parsed);
-
-    return validated.map((item) => ({
-      ...item,
-      engine: 'LLM_RAG',
-    }));
+    throw lastError || new Error('Gemini API evaluation failed after retries.');
   }
 }
 

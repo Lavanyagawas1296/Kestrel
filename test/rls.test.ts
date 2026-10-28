@@ -36,6 +36,15 @@ describe('Kestrel RLS & Data Integrity Test Suite', () => {
   beforeEach(async () => {
     db = new PGlite({ extensions: { vector } });
 
+    // Define auth schema and auth.uid() helper for PGlite test environment
+    await db.exec(`
+      CREATE SCHEMA IF NOT EXISTS auth;
+      CREATE OR REPLACE FUNCTION auth.uid()
+      RETURNS uuid LANGUAGE sql STABLE AS $$
+        SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+      $$;
+    `);
+
     // Load and execute migration
     const migrationSql = fs.readFileSync(
       path.join(process.cwd(), 'supabase/migrations/20261027000000_init_kestrel.sql'),
