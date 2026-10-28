@@ -14,8 +14,7 @@ export function OverrideModal({ finding, onConfirm, onClose }: OverrideModalProp
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!comment.trim()) {
       setError('An override comment is strictly required to justify bypassing this rule flag.');
       return;
@@ -59,7 +58,7 @@ export function OverrideModal({ finding, onConfirm, onClose }: OverrideModalProp
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <div className="mt-4 space-y-4">
           <div>
             <span className="text-xs font-semibold text-navy block mb-1">Flagged text span:</span>
             <div className="p-2.5 bg-beige rounded border border-border text-xs text-navy font-mono">
@@ -78,7 +77,6 @@ export function OverrideModal({ finding, onConfirm, onClose }: OverrideModalProp
               onChange={(e) => setComment(e.target.value)}
               placeholder="e.g. Legal exception approved per ticket #402 by Brand Director"
               className="w-full text-xs p-2.5 rounded border border-border bg-white text-navy focus-visible:outline-navy"
-              required
             />
           </div>
 
@@ -99,14 +97,15 @@ export function OverrideModal({ finding, onConfirm, onClose }: OverrideModalProp
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit}
               disabled={submitting}
               className="px-4 py-1.5 text-xs font-semibold bg-navy text-white rounded hover:bg-navy/90 focus-visible:outline-navy disabled:opacity-50"
             >
               {submitting ? 'Saving...' : 'Confirm override'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

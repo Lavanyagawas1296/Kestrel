@@ -225,7 +225,10 @@ async function run() {
           '#override-comment',
           'Legal exception approved per ticket #402 by Brand Director'
         );
-        await confirmBtn.click();
+        await Promise.all([
+          page1.waitForResponse((res) => res.url().includes('/override') && res.status() === 200, { timeout: 15000 }),
+          confirmBtn.click(),
+        ]);
 
         // Wait for modal to close and status to update to OVERRIDDEN
         await page1.waitForSelector('text=OVERRIDDEN', { timeout: 10000 });
