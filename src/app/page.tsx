@@ -74,19 +74,29 @@ export default function HomePage() {
         const validWorkspaceId = sessionPayload?.workspaceId && UUID_REGEX.test(sessionPayload.workspaceId) ? sessionPayload.workspaceId : undefined;
         const validToken = sessionPayload?.token && typeof sessionPayload.token === 'string' && sessionPayload.token.length > 20 ? sessionPayload.token : undefined;
 
-        const res = await fetch('/api/session/init', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: validUserId,
-            workspaceId: validWorkspaceId,
-            token: validToken,
-          }),
-        });
+        let res: Response | null = null;
+        let lastErr: any = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            res = await fetch('/api/session/init', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: validUserId,
+                workspaceId: validWorkspaceId,
+                token: validToken,
+              }),
+            });
+            if (res.ok) break;
+          } catch (e) {
+            lastErr = e;
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+        }
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to initialize anonymous sandbox session');
+        if (!res || !res.ok) {
+          const errData = res ? await res.json().catch(() => ({})) : {};
+          throw new Error(errData.error || lastErr?.message || 'Failed to initialize anonymous sandbox session');
         }
 
         const data = await res.json();
