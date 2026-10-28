@@ -25,7 +25,7 @@ interface ReviewWorkspaceScreenProps {
   userId: string;
   activeRole: MemberRole;
   onDraftSelect: (draftId: string) => void;
-  onRefreshDraft: () => Promise<void>;
+  onRefreshDraft: (updatedDraft?: any) => Promise<void> | void;
   onCreateDraft: (title: string, content: string) => Promise<void>;
 }
 
@@ -123,7 +123,7 @@ export function ReviewWorkspaceScreen({
       if (result.failedChecks && result.failedChecks.length > 0) {
         setFailedChecks(result.failedChecks);
       }
-      await onRefreshDraft();
+      await onRefreshDraft(result.draft);
     } catch (err: any) {
       setReviewError(err.message);
     } finally {
@@ -142,7 +142,8 @@ export function ReviewWorkspaceScreen({
         const data = await res.json();
         throw new Error(data.error || 'Failed to apply fix');
       }
-      await onRefreshDraft();
+      const updated = await res.json();
+      await onRefreshDraft(updated);
     } catch (err: any) {
       alert(`Could not apply fix: ${err.message}`);
     }

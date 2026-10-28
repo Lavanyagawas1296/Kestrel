@@ -169,7 +169,12 @@ export default function HomePage() {
   }, [workspaceId]);
 
   // Refresh Active Draft
-  const refreshActiveDraft = useCallback(async () => {
+  const refreshActiveDraft = useCallback(async (updatedDraft?: any) => {
+    if (updatedDraft) {
+      setActiveDraft(updatedDraft);
+      await refreshDrafts();
+      return;
+    }
     if (!workspaceId || !activeDraft) return;
     await selectDraft(activeDraft.id);
     await refreshDrafts();

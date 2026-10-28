@@ -147,13 +147,13 @@ async function run() {
       'step4-review-running.png',
       async () => {
         const reviewBtn = page1.locator('button:has-text("Run brand review")');
-        await reviewBtn.click();
-        // Wait for evaluation to complete
-        await page1.waitForFunction(
-          () => !document.body.innerText.includes('Evaluating rules...'),
-          { timeout: 35000 }
-        );
-        return 'Review pipeline completed evaluation';
+        // Wait for the review API call to complete
+        const [response] = await Promise.all([
+          page1.waitForResponse((res) => res.url().includes('/review') && res.status() === 200, { timeout: 45000 }),
+          reviewBtn.click(),
+        ]);
+        const data = await response.json().catch(() => ({}));
+        return `Review pipeline completed evaluation (${data.draft?.findings?.length || 0} findings detected)`;
       }
     );
 
