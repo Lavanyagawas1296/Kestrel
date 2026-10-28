@@ -181,6 +181,26 @@ export class WorkspaceService {
       });
       if (memErr) throw new Error('Failed to register member: ' + memErr.message);
 
+      // Seed public sample rules into the new sandbox workspace
+      for (const r of PUBLIC_SAMPLE_RULES) {
+        await client.from('kb_rules').upsert(
+          {
+            workspace_id: workspaceId,
+            rule_id: r.rule_id,
+            type: r.type as any,
+            owner: r.owner,
+            effective_date: r.effective_date,
+            version: r.version,
+            rule_text: r.rule_text,
+            source_name: r.source_name,
+            source_url: r.source_url,
+            origin: r.origin as any,
+            status: r.status as any,
+          },
+          { onConflict: 'workspace_id,rule_id' }
+        );
+      }
+
       // Cache token
       this.tokenCache.set(workspaceId, currentToken);
       this.tokenCache.set(userId, currentToken);
@@ -207,6 +227,15 @@ export class WorkspaceService {
       `INSERT INTO public.members (workspace_id, user_id, role) VALUES ($1, $2, $3)`,
       [workspaceId, userId, 'manager']
     );
+
+    for (const r of PUBLIC_SAMPLE_RULES) {
+      await db.query(
+        `INSERT INTO public.kb_rules (workspace_id, rule_id, type, owner, effective_date, version, rule_text, source_name, source_url, origin, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (workspace_id, rule_id) DO NOTHING`,
+        [workspaceId, r.rule_id, r.type, r.owner, r.effective_date, r.version, r.rule_text, r.source_name, r.source_url, r.origin, r.status]
+      );
+    }
 
     return {
       workspaceId,
