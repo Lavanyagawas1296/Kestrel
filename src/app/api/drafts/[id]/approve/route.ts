@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { workspaceService } from '@/lib/services/workspace-service';
+import { extractToken } from '@/lib/auth/extract-token';
 import { z } from 'zod';
 
 const approveSchema = z.object({
@@ -18,6 +19,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const token = extractToken(req);
     const body = await req.json();
     const parsed = approveSchema.parse(body);
 
@@ -26,7 +28,8 @@ export async function POST(
       parsed.managerId,
       params.id,
       parsed.decision,
-      parsed.comment
+      parsed.comment,
+      token
     );
     return NextResponse.json(updated);
   } catch (err: any) {

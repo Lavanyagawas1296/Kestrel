@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { workspaceService } from '@/lib/services/workspace-service';
 import { memberRoleSchema } from '@/lib/validation/entities';
+import { extractToken } from '@/lib/auth/extract-token';
 import { z } from 'zod';
 
 const roleSwitchSchema = z.object({
@@ -15,12 +16,14 @@ const roleSwitchSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const token = extractToken(req);
     const body = await req.json();
     const parsed = roleSwitchSchema.parse(body);
     const updated = await workspaceService.switchRole(
       parsed.workspaceId,
       parsed.userId,
-      parsed.role
+      parsed.role,
+      token
     );
     return NextResponse.json(updated);
   } catch (err: any) {

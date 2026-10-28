@@ -78,7 +78,7 @@ export class GeminiProvider implements LLMProvider {
 
   constructor(apiKey?: string, model?: string) {
     this.apiKey = apiKey || process.env.GEMINI_API_KEY || '';
-    this.model = model || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+    this.model = model || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
   }
 
   async checkDraft(

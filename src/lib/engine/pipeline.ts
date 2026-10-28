@@ -73,7 +73,7 @@ export async function runReviewPipeline(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), input.timeoutMs || 15_000);
+    const timeout = setTimeout(() => controller.abort(), input.timeoutMs || 25_000);
 
     const rawLlmFindings = await provider.checkDraft(
       redactedText,

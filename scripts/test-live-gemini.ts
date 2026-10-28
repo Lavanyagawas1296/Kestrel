@@ -21,7 +21,7 @@ const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PU
 
 async function runLiveGeminiTest() {
   console.log('=== RUNNING LIVE GEMINI ADAPTER REVIEW ===');
-  console.log('Target model: gemini-3.5-flash-lite');
+  console.log('Target model: gemini-3.1-flash-lite');
 
   // 1. Prepare draft and active rules
   const realDraft = `Welcome to the Kestrel Cloud platform. We guarantee 99.99% zero-downtime uptime for all mission-critical enterprise workloads. If your team needs custom integration assistance, our engineers will slack you the deployment runbook directly. Happy Slacking!`;
@@ -96,8 +96,8 @@ async function runLiveGeminiTest() {
   // 5. Audit Logging to payload_log in Supabase
   console.log('\n--- Step 4: Outbound Payload Logging to Supabase payload_log ---');
   const anonClient = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
-  const { data: authData } = await anonClient.auth.signInAnonymously();
-  if (!authData?.session) throw new Error('Supabase anon auth failed');
+  const { data: authData, error: authErr } = await anonClient.auth.signInAnonymously();
+  if (authErr || !authData?.session) throw new Error('Supabase anon auth failed: ' + (authErr?.message || 'No session'));
 
   const scopedClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: { persistSession: false },

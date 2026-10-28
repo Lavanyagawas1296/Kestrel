@@ -41,7 +41,7 @@ export default function HomePage() {
       setActiveDraft(null);
       localStorage.setItem(
         'kestrel_judge_session',
-        JSON.stringify({ workspaceId: data.workspaceId, userId: data.userId, isSample: true })
+        JSON.stringify({ workspaceId: data.workspaceId, userId: data.userId, isSample: true, token: data.token })
       );
     } catch (err: any) {
       alert(`Error loading sample workspace: ${err.message}`);
@@ -71,7 +71,11 @@ export default function HomePage() {
         const res = await fetch('/api/session/init', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: sessionPayload?.userId }),
+          body: JSON.stringify({
+            userId: sessionPayload?.userId,
+            workspaceId: sessionPayload?.workspaceId,
+            token: sessionPayload?.token,
+          }),
         });
 
         if (!res.ok) {
@@ -85,7 +89,7 @@ export default function HomePage() {
 
         localStorage.setItem(
           'kestrel_judge_session',
-          JSON.stringify({ workspaceId: data.workspaceId, userId: data.userId })
+          JSON.stringify({ workspaceId: data.workspaceId, userId: data.userId, token: data.token })
         );
       } catch (err: any) {
         setError(err.message || 'Session initialization error');
