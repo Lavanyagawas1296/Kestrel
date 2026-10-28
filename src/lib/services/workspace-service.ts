@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database, MemberRole } from '../supabase/database.types';
 import { runReviewPipeline } from '../engine/pipeline';
 import { PUBLIC_SAMPLE_RULES } from '../constants/sample-rules';
+import { getSupabaseCredentials } from '../supabase/config';
 
 export interface DraftVersionItem {
   id: string;
@@ -36,10 +37,7 @@ export class WorkspaceService {
    * Determines whether the environment is configured to use live Supabase
    */
   get isSupabase(): boolean {
-    return Boolean(
-      (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-      process.env.USE_PGLITE !== 'true'
-    );
+    return process.env.USE_PGLITE !== 'true';
   }
 
   /**
@@ -56,8 +54,7 @@ export class WorkspaceService {
   private getClient(token?: string, workspaceId?: string, userId?: string): SupabaseClient<Database> | null {
     if (!this.isSupabase) return null;
 
-    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const { url, key } = getSupabaseCredentials();
 
     let effectiveToken = token;
     if (!effectiveToken && workspaceId) {
@@ -99,8 +96,7 @@ export class WorkspaceService {
    */
   async initSandboxSession(existingUserId?: string, token?: string, existingWorkspaceId?: string) {
     if (this.isSupabase) {
-      const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      const { url, key } = getSupabaseCredentials();
       const anonClient = createClient<Database>(url, key, { auth: { persistSession: false } });
 
       let currentToken = token;
@@ -937,8 +933,7 @@ export class WorkspaceService {
     const workspaceId = crypto.randomUUID();
 
     if (this.isSupabase) {
-      const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      const { url, key } = getSupabaseCredentials();
       const anonClient = createClient<Database>(url, key, { auth: { persistSession: false } });
 
       let currentToken = token;
