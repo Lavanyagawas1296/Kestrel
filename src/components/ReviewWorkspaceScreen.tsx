@@ -158,7 +158,14 @@ export function ReviewWorkspaceScreen({
         const data = await res.json();
         throw new Error(data.error || 'Failed to accept finding');
       }
-      await onRefreshDraft();
+      if (activeDraft && activeDraft.findings) {
+        const updatedFindings = activeDraft.findings.map((f: any) =>
+          f.id === findingId ? { ...f, status: 'ACCEPTED' } : f
+        );
+        await onRefreshDraft({ ...activeDraft, findings: updatedFindings });
+      } else {
+        await onRefreshDraft();
+      }
     } catch (err: any) {
       alert(`Could not accept finding: ${err.message}`);
     }
@@ -175,7 +182,17 @@ export function ReviewWorkspaceScreen({
       const data = await res.json();
       throw new Error(data.error || 'Failed to override finding');
     }
-    await onRefreshDraft();
+    const updatedFinding = await res.json();
+    if (activeDraft && activeDraft.findings) {
+      const updatedFindings = activeDraft.findings.map((f: any) =>
+        f.id === overrideModalFinding.id
+          ? { ...f, status: 'OVERRIDDEN', override_comment: comment }
+          : f
+      );
+      await onRefreshDraft({ ...activeDraft, findings: updatedFindings });
+    } else {
+      await onRefreshDraft();
+    }
   };
 
   // Render severity badge with icon + label (never color alone)

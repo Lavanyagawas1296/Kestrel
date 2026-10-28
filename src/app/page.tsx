@@ -122,7 +122,7 @@ export default function HomePage() {
   const refreshRules = useCallback(async () => {
     if (!workspaceId || !UUID_REGEX.test(workspaceId)) return;
     try {
-      const res = await fetch(`/api/kb/rules?workspaceId=${workspaceId}`);
+      const res = await fetch(`/api/kb/rules?workspaceId=${workspaceId}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setRules(data);
@@ -136,13 +136,13 @@ export default function HomePage() {
   const refreshDrafts = useCallback(async () => {
     if (!workspaceId || !UUID_REGEX.test(workspaceId)) return;
     try {
-      const res = await fetch(`/api/drafts?workspaceId=${workspaceId}`);
+      const res = await fetch(`/api/drafts?workspaceId=${workspaceId}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setDrafts(data);
         if (data.length > 0 && !activeDraft) {
           // Select first draft by default
-          const draftDetailRes = await fetch(`/api/drafts/${data[0].id}?workspaceId=${workspaceId}`);
+          const draftDetailRes = await fetch(`/api/drafts/${data[0].id}?workspaceId=${workspaceId}`, { cache: 'no-store' });
           if (draftDetailRes.ok) {
             const detail = await draftDetailRes.json();
             setActiveDraft(detail);
@@ -158,7 +158,7 @@ export default function HomePage() {
   const selectDraft = useCallback(async (draftId: string) => {
     if (!workspaceId || !UUID_REGEX.test(workspaceId) || !draftId || !UUID_REGEX.test(draftId)) return;
     try {
-      const res = await fetch(`/api/drafts/${draftId}?workspaceId=${workspaceId}`);
+      const res = await fetch(`/api/drafts/${draftId}?workspaceId=${workspaceId}`, { cache: 'no-store' });
       if (res.ok) {
         const detail = await res.json();
         setActiveDraft(detail);

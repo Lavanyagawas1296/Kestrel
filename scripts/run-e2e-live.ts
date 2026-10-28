@@ -218,6 +218,7 @@ async function run() {
         // Check for required validation error
         await page1.waitForSelector('text=An override comment is strictly required', { timeout: 5000 });
         console.log('  Validation active: empty comment blocked.');
+        await page1.screenshot({ path: path.join(SCREENSHOTS_DIR, 'step7-override-comment-required.png'), fullPage: true });
 
         // Now fill required comment
         await page1.fill(
