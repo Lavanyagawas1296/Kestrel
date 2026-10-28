@@ -64,8 +64,8 @@ export function runDeterministicChecks(
       explanation: 'The sign-off "Happy Slacking!" is strictly banned under Slack brand guidelines.',
     },
     {
-      regex: /\b(?:I(?:'ll| will)\s+slack\s+you)\b/gi,
-      edit: "I'll message you on Slack",
+      regex: /\b(?:(?:I(?:'ll| will)|[a-z]+\s+will|will)\s+slack\s+you)\b/gi,
+      edit: "message you on Slack",
       explanation: '"Slack" must never be used as a verb.',
     },
     {

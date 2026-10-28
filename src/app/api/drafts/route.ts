@@ -12,13 +12,15 @@ const draftRequestSchema = createDraftSchema.extend({
   userId: z.string().uuid(),
 });
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(req: Request) {
   try {
     const token = extractToken(req);
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get('workspaceId');
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId query parameter is required' }, { status: 400 });
+    if (!workspaceId || !UUID_REGEX.test(workspaceId)) {
+      return NextResponse.json([]);
     }
     const drafts = await workspaceService.listDrafts(workspaceId, token);
     return NextResponse.json(drafts);

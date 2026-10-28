@@ -74,6 +74,25 @@ export class WorkspaceService {
   }
 
   /**
+   * Extracts user UUID (sub claim) from JWT token if available, otherwise returns fallback
+   */
+  getUserIdFromToken(token?: string, fallbackUserId?: string): string {
+    if (token) {
+      try {
+        const base64Url = token.split('.')[1];
+        if (base64Url) {
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
+          if (payload.sub) return payload.sub;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return fallbackUserId || crypto.randomUUID();
+  }
+
+  /**
    * Initializes an isolated sandbox workspace for a judge session,
    * creates an anonymous Supabase user (or uses existing session), sets role to 'manager',
    * and leaves empty state pristine until optional sample data is loaded.
@@ -87,6 +106,25 @@ export class WorkspaceService {
       let currentToken = token;
       let effectiveUserId = existingUserId;
 
+      // If token is provided, verify it is still valid and not expired
+      if (currentToken) {
+        try {
+          const base64Url = currentToken.split('.')[1];
+          if (base64Url) {
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
+            const now = Math.floor(Date.now() / 1000);
+            if (payload.exp && payload.exp < now) {
+              currentToken = undefined;
+            } else if (payload.sub) {
+              effectiveUserId = payload.sub;
+            }
+          }
+        } catch {
+          currentToken = undefined;
+        }
+      }
+
       // If no valid token supplied, sign in anonymously to obtain a legitimate Supabase auth session
       if (!currentToken) {
         const { data: authData, error: authErr } = await anonClient.auth.signInAnonymously();
@@ -94,7 +132,7 @@ export class WorkspaceService {
           throw new Error('Supabase anonymous sign-in failed: ' + (authErr?.message || 'No session'));
         }
         currentToken = authData.session.access_token;
-        effectiveUserId = authData.user?.id || existingUserId || crypto.randomUUID();
+        effectiveUserId = authData.user?.id || crypto.randomUUID();
       }
 
       const client = createClient<Database>(url, key, {
@@ -178,13 +216,14 @@ export class WorkspaceService {
    * Toggles role inside the user's sandbox workspace
    */
   async switchRole(workspaceId: string, userId: string, role: MemberRole, token?: string) {
-    const client = this.getClient(token, workspaceId, userId);
+    const effectiveUserId = this.getUserIdFromToken(token, userId);
+    const client = this.getClient(token, workspaceId, effectiveUserId);
     if (client) {
       const { data, error } = await client
         .from('members')
         .update({ role, updated_at: new Date().toISOString() })
         .eq('workspace_id', workspaceId)
-        .eq('user_id', userId)
+        .eq('user_id', effectiveUserId)
         .select('role')
         .single();
       if (error) throw new Error(error.message);
@@ -331,7 +370,8 @@ export class WorkspaceService {
    * Creates a new draft with version 1
    */
   async createDraft(workspaceId: string, userId: string, title: string, content: string, token?: string) {
-    const client = this.getClient(token, workspaceId, userId);
+    const effectiveUserId = this.getUserIdFromToken(token, userId);
+    const client = this.getClient(token, workspaceId, effectiveUserId);
     if (client) {
       const draftId = crypto.randomUUID();
       const versionId = crypto.randomUUID();
@@ -341,7 +381,7 @@ export class WorkspaceService {
         workspace_id: workspaceId,
         title,
         status: 'DRAFT',
-        created_by: userId,
+        created_by: effectiveUserId,
       });
       if (draftErr) throw new Error(draftErr.message);
 
@@ -351,7 +391,7 @@ export class WorkspaceService {
         workspace_id: workspaceId,
         version_number: 1,
         content,
-        created_by: userId,
+        created_by: effectiveUserId,
       });
       if (verErr) throw new Error(verErr.message);
 
@@ -503,7 +543,8 @@ export class WorkspaceService {
     options?: { codenames?: string[] },
     token?: string
   ) {
-    const client = this.getClient(token, workspaceId, userId);
+    const effectiveUserId = this.getUserIdFromToken(token, userId);
+    const client = this.getClient(token, workspaceId, effectiveUserId);
     const draft = await this.getDraft(workspaceId, draftId, token);
     if (!draft) throw new Error('Draft not found');
 
@@ -529,7 +570,7 @@ export class WorkspaceService {
       // 1. Log outbound post-redaction payload to payload_log
       await client.from('payload_log').insert({
         workspace_id: workspaceId,
-        user_id: userId,
+        user_id: effectiveUserId,
         draft_id: draftId,
         endpoint: 'POST /api/drafts/[id]/review',
         payload: {
@@ -697,7 +738,8 @@ export class WorkspaceService {
    * Applies the minimal edit of a finding and creates a new incremental draft_version
    */
   async applyFix(workspaceId: string, userId: string, findingId: string, token?: string) {
-    const client = this.getClient(token, workspaceId, userId);
+    const effectiveUserId = this.getUserIdFromToken(token, userId);
+    const client = this.getClient(token, workspaceId, effectiveUserId);
     if (client) {
       const { data: finding, error: findErr } = await client
         .from('findings')
@@ -721,7 +763,7 @@ export class WorkspaceService {
         workspace_id: workspaceId,
         version_number: newVersionNumber,
         content: newContent,
-        created_by: userId,
+        created_by: effectiveUserId,
       });
 
       await client
@@ -785,13 +827,14 @@ export class WorkspaceService {
     comment?: string,
     token?: string
   ) {
-    const client = this.getClient(token, workspaceId, managerId);
+    const effectiveManagerId = this.getUserIdFromToken(token, managerId);
+    const client = this.getClient(token, workspaceId, effectiveManagerId);
     if (client) {
       const { data: member } = await client
         .from('members')
         .select('role')
         .eq('workspace_id', workspaceId)
-        .eq('user_id', managerId)
+        .eq('user_id', effectiveManagerId)
         .single();
 
       if (!member || member.role !== 'manager') {
@@ -806,7 +849,7 @@ export class WorkspaceService {
         workspace_id: workspaceId,
         draft_id: draftId,
         draft_version_id: latestVersion.id,
-        reviewer_id: managerId,
+        reviewer_id: effectiveManagerId,
         decision,
         comment: comment || null,
       });
@@ -900,12 +943,12 @@ export class WorkspaceService {
         effectiveUserId = authData?.user?.id || userId;
       }
 
+      const actualUserId = this.getUserIdFromToken(currentToken, effectiveUserId || userId);
+
       const client = createClient<Database>(url, key, {
         auth: { persistSession: false },
         global: currentToken ? { headers: { Authorization: `Bearer ${currentToken}` } } : undefined,
       });
-
-      const actualUserId = effectiveUserId || userId;
 
       // 1. Workspace
       await client.from('workspaces').insert({

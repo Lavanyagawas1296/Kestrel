@@ -6,6 +6,8 @@ import { NextResponse } from 'next/server';
 import { workspaceService } from '@/lib/services/workspace-service';
 import { extractToken } from '@/lib/auth/extract-token';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
@@ -14,8 +16,8 @@ export async function GET(
     const token = extractToken(req);
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get('workspaceId');
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId query parameter is required' }, { status: 400 });
+    if (!workspaceId || !UUID_REGEX.test(workspaceId) || !UUID_REGEX.test(params.id)) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
     }
     const draft = await workspaceService.getDraft(workspaceId, params.id, token);
     if (!draft) {

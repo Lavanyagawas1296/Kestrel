@@ -9,6 +9,8 @@ import { RevisionHistoryScreen } from '@/components/RevisionHistoryScreen';
 import { PayloadLogScreen } from '@/components/PayloadLogScreen';
 import { Loader2, AlertCircle } from 'lucide-react';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function HomePage() {
   const [workspaceId, setWorkspaceId] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
@@ -31,7 +33,7 @@ export default function HomePage() {
       const res = await fetch('/api/sample-workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId: UUID_REGEX.test(userId) ? userId : undefined }),
       });
       if (!res.ok) throw new Error('Failed to load synthetic sample workspace');
       const data = await res.json();
@@ -68,13 +70,17 @@ export default function HomePage() {
           }
         }
 
+        const validUserId = sessionPayload?.userId && UUID_REGEX.test(sessionPayload.userId) ? sessionPayload.userId : undefined;
+        const validWorkspaceId = sessionPayload?.workspaceId && UUID_REGEX.test(sessionPayload.workspaceId) ? sessionPayload.workspaceId : undefined;
+        const validToken = sessionPayload?.token && typeof sessionPayload.token === 'string' && sessionPayload.token.length > 20 ? sessionPayload.token : undefined;
+
         const res = await fetch('/api/session/init', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: sessionPayload?.userId,
-            workspaceId: sessionPayload?.workspaceId,
-            token: sessionPayload?.token,
+            userId: validUserId,
+            workspaceId: validWorkspaceId,
+            token: validToken,
           }),
         });
 
@@ -103,7 +109,7 @@ export default function HomePage() {
 
   // Fetch Workspace Rules
   const refreshRules = useCallback(async () => {
-    if (!workspaceId) return;
+    if (!workspaceId || !UUID_REGEX.test(workspaceId)) return;
     try {
       const res = await fetch(`/api/kb/rules?workspaceId=${workspaceId}`);
       if (res.ok) {
@@ -117,7 +123,7 @@ export default function HomePage() {
 
   // Fetch Drafts
   const refreshDrafts = useCallback(async () => {
-    if (!workspaceId) return;
+    if (!workspaceId || !UUID_REGEX.test(workspaceId)) return;
     try {
       const res = await fetch(`/api/drafts?workspaceId=${workspaceId}`);
       if (res.ok) {
@@ -138,9 +144,8 @@ export default function HomePage() {
   }, [workspaceId, activeDraft]);
 
   // Fetch Specific Draft Detail
-  // Fetch Specific Draft Detail
   const selectDraft = useCallback(async (draftId: string) => {
-    if (!workspaceId) return;
+    if (!workspaceId || !UUID_REGEX.test(workspaceId) || !draftId || !UUID_REGEX.test(draftId)) return;
     try {
       const res = await fetch(`/api/drafts/${draftId}?workspaceId=${workspaceId}`);
       if (res.ok) {
@@ -161,7 +166,7 @@ export default function HomePage() {
 
   // Create Draft
   const handleCreateDraft = async (title: string, content: string) => {
-    if (!workspaceId || !userId) return;
+    if (!workspaceId || !userId || !UUID_REGEX.test(workspaceId) || !UUID_REGEX.test(userId)) return;
     try {
       const res = await fetch('/api/drafts', {
         method: 'POST',
@@ -189,7 +194,7 @@ export default function HomePage() {
 
   // Fetch Payload Logs
   const refreshPayloadLogs = useCallback(async () => {
-    if (!workspaceId) return;
+    if (!workspaceId || !UUID_REGEX.test(workspaceId)) return;
     try {
       const res = await fetch(`/api/payload-log?workspaceId=${workspaceId}`);
       if (res.ok) {
@@ -203,7 +208,7 @@ export default function HomePage() {
 
   // Switch Role
   const handleRoleChange = async (role: MemberRole) => {
-    if (!workspaceId || !userId) return;
+    if (!workspaceId || !userId || !UUID_REGEX.test(workspaceId) || !UUID_REGEX.test(userId)) return;
     try {
       const res = await fetch('/api/session/role', {
         method: 'POST',
@@ -220,7 +225,7 @@ export default function HomePage() {
 
   // Trigger loads on workspaceId ready
   useEffect(() => {
-    if (workspaceId) {
+    if (workspaceId && UUID_REGEX.test(workspaceId)) {
       refreshRules();
       refreshDrafts();
       refreshPayloadLogs();
